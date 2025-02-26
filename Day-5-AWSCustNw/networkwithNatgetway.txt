@@ -1,0 +1,140 @@
+# Create a VPC
+resource "aws_vpc" "Prod" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "prod_vpc"
+  }
+}
+
+# Create Public Subnet
+resource "aws_subnet" "prod" {
+  vpc_id                  = aws_vpc.Prod.id
+  cidr_block              = "10.0.0.0/24"
+  availability_zone       = "ap-south-1b"  # Modify as needed for your region
+  map_public_ip_on_launch = true  # Enable public IP assignment for public subnet
+
+  tags = {
+    Name = "prod_subnet"
+  }
+}
+
+# Create Private Subnet
+resource "aws_subnet" "prod_private" {  # Fixed extra space in the resource name
+  vpc_id                  = aws_vpc.Prod.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1b"  # Modify as needed for your region
+  map_public_ip_on_launch = false  # Do not assign public IPs to private subnet
+
+  tags = {
+    Name = "prod_private_subnet"
+  }
+}
+
+# Create Internet Gateway
+resource "aws_internet_gateway" "prod" {
+  vpc_id = aws_vpc.Prod.id
+
+  tags = {
+    Name = "prod_ig"
+  }
+}
+
+# Create Route Table for Public Subnet
+resource "aws_route_table" "prod_route_table" {
+  vpc_id = aws_vpc.Prod.id
+
+  # Define the route for public subnet
+  route {
+    gateway_id = aws_internet_gateway.prod.id
+    cidr_block = "0.0.0.0/0"
+  }
+
+  tags = {
+    Name = "prod_route_table"
+  }
+}
+
+# Associate Route Table with Public Subnet
+resource "aws_route_table_association" "prod_association" {
+  route_table_id = aws_route_table.prod_route_table.id
+  subnet_id      = aws_subnet.prod.id
+}
+
+# Create Elastic IP for NAT Gateway
+resource "aws_eip" "prod_nat_eip" {
+#   vpc = true
+    allocation_id = aws_eip.prod_nat_eip.id  # Referencing the Elastic IP
+    # subnet
+    # subne  = aws_subnet.prod.id  # NAT Gateway is placed in the public subnet
+
+  tags = {
+    Name = "prod_nat_eip"
+  }
+}
+
+# Create NAT Gateway
+resource "aws_nat_gateway" "prod_nat_gateway" {
+  allocation_id = aws_eip.prod_nat_eip.id
+  subnet_id     = aws_subnet.prod.id  # Place the NAT Gateway in the public subnet
+
+  tags = {
+    Name = "prod_nat_gateway"
+  }
+}
+
+# Create Route Table for Private Subnet
+resource "aws_route_table" "prod_private_route_table" {
+  vpc_id = aws_vpc.Prod.id
+
+  # Define the route for the private subnet to use the NAT Gateway
+  route {
+    nat_gateway_id = aws_nat_gateway.prod_nat_gateway.id
+    cidr_block     = "0.0.0.0/0"
+  }
+
+  tags = {
+    Name = "prod_private_route_table"
+  }
+}
+
+# Associate Route Table with Private Subnet
+resource "aws_route_table_association" "prod_private_association" {
+  route_table_id = aws_route_table.prod_private_route_table.id
+  subnet_id      = aws_subnet.prod_private.id
+}
+
+# Security Group allowing SSH and HTTP traffic
+resource "aws_security_group" "prod" {
+  name        = "allow_ssh_http"  # Changed the name to be more descriptive
+  description = "Allow inbound SSH and HTTP traffic"
+  vpc_id      = aws_vpc.Prod.id
+
+  # Inbound rules
+  ingress {
+    description = "Allow SSH access"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTP access"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Outbound rules (allow all outbound traffic)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"  # -1 means all protocols
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "prod_security_group"
+  }
+}

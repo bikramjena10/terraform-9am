@@ -2,7 +2,6 @@ resource "aws_instance" "name" {
     ami = "ami-0d682f26195e9ec0f"
     instance_type = "t2.micro"
     key_name = "linuxpra"
-    availability_zone = "us-east-1a"
     tags = {
       Name = "dev"
     }
@@ -11,7 +10,7 @@ resource "aws_instance" "name" {
 }
 
 resource "aws_s3_bucket" "name" {
-  bucket = "chandanref"
+  bucket = "chandanreftest"
 
   
 }
